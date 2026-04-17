@@ -1,5 +1,7 @@
 # AI-Economy Macro Simulation v0
 
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ai-economy-sim.streamlit.app)
+
 A stylized agent-based macroeconomic simulation of a US-like economy undergoing AI-driven transformation over a ~10-year horizon. Built as a **thinking tool**, not a forecasting model.
 
 > **v0 is a prototype.** Absolute numbers are meaningless. What matters is relative dynamics across scenarios.

@@ -1,7 +1,13 @@
 """Streamlit interactive UI for the AI-Economy Macro Simulation."""
 
+import sys
 import time
 from pathlib import Path
+
+# Ensure the repo root is on the path so ai_econ_sim is importable
+# whether running locally (installed) or on Streamlit Community Cloud.
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import streamlit as st
 import numpy as np
 
