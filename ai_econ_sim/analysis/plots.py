@@ -60,6 +60,148 @@ def plot_standard_set(df: pd.DataFrame, output_dir: Path, run_name: str = "run")
     return [p for p in paths if p is not None]
 
 
+# ------------------------------------------------------------------
+# Monte Carlo band plots
+# ------------------------------------------------------------------
+
+def plot_mc_bands(mc_results: Any, output_dir: Path, run_name: str = "mc") -> list[Path]:
+    """
+    Generate MC uncertainty-band PNGs for key indicators.
+    Median line + shaded 10th-90th and 25th-75th percentile bands.
+    """
+    if not HAS_MPL:
+        return []
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    paths = []
+
+    indicators = [
+        ("nominal_gdp",          "Nominal GDP",              1e12, "$T"),
+        ("unemployment_rate",    "Unemployment Rate",        100,  "%"),
+        ("labor_share",          "Labor Share of GDP",       100,  "%"),
+        ("gini",                 "Gini Coefficient",         1,    ""),
+        ("employment_services",  "Services Employment",      1,    "workers"),
+        ("employment_knowledge_work", "KW Employment",       1,    "workers"),
+        ("ai_adoption_knowledge_work", "KW AI Adoption",     100,  "%"),
+        ("interface_realization","Interface Realization",    100,  "%"),
+    ]
+
+    for col, label, scale, unit in indicators:
+        p = _plot_one_mc_band(mc_results, col, label, scale, unit, output_dir, run_name)
+        if p:
+            paths.append(p)
+
+    return paths
+
+
+def _plot_one_mc_band(
+    mc: Any, col: str, label: str, scale: float, unit: str,
+    out: Path, name: str,
+) -> Optional[Path]:
+    try:
+        bands = mc.bands
+        if col not in bands.columns:
+            return None
+        quarters = bands.xs(0.50, level="quantile").index
+
+        p10 = bands.xs(0.10, level="quantile")[col] * scale
+        p25 = bands.xs(0.25, level="quantile")[col] * scale
+        p50 = bands.xs(0.50, level="quantile")[col] * scale
+        p75 = bands.xs(0.75, level="quantile")[col] * scale
+        p90 = bands.xs(0.90, level="quantile")[col] * scale
+
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.fill_between(quarters, p10, p90, alpha=0.15, color="#2980b9", label="10–90th pct")
+        ax.fill_between(quarters, p25, p75, alpha=0.30, color="#2980b9", label="25–75th pct")
+        ax.plot(quarters, p50, color="#1a5276", linewidth=2, label="Median")
+        ax.set_xlabel("Quarter")
+        ylabel = f"{label} ({unit})" if unit else label
+        ax.set_ylabel(ylabel)
+        ax.set_title(f"{label} — MC uncertainty bands (n={mc.n_runs})")
+        ax.legend(fontsize=9)
+        path = out / f"{name}_mc_{col}.png"
+        fig.savefig(path, dpi=120, bbox_inches="tight")
+        plt.close(fig)
+        return path
+    except Exception:
+        return None
+
+
+def plot_sweep_comparison(sweep: Any, column: str, label: str, output_dir: Path, run_name: str = "sweep") -> Optional[Path]:
+    """Plot median trajectories for each parameter value in a sweep."""
+    if not HAS_MPL:
+        return None
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    cmap = plt.cm.viridis  # type: ignore[attr-defined]
+    colors = [cmap(i / max(1, len(sweep.param_values) - 1)) for i in range(len(sweep.param_values))]
+
+    for val, mc, color in zip(sweep.param_values, sweep.mc_results, colors):
+        if column not in mc.bands.columns:
+            continue
+        median = mc.median()[column]
+        ax.plot(median.index, median, label=f"{sweep.param_name}={val}", color=color)
+
+    ax.set_xlabel("Quarter")
+    ax.set_ylabel(label)
+    ax.set_title(f"{label} by {sweep.param_name}")
+    ax.legend(fontsize=9)
+    path = output_dir / f"{run_name}_sweep_{column}.png"
+    fig.savefig(path, dpi=120, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def build_plotly_mc_dashboard(mc_results: Any) -> Any:
+    """Plotly figure with MC band traces for embedding in Streamlit."""
+    if not HAS_PLOTLY:
+        return None
+
+    indicators = [
+        ("nominal_gdp",       "GDP ($)",          1e9),
+        ("unemployment_rate", "Unemployment %",   100),
+        ("labor_share",       "Labor Share %",    100),
+        ("gini",              "Gini",             1),
+    ]
+
+    fig = make_subplots(
+        rows=2, cols=2,
+        subplot_titles=[label for _, label, _ in indicators],
+    )
+
+    for idx, (col, label, scale) in enumerate(indicators):
+        row, col_pos = divmod(idx, 2)
+        row += 1; col_pos += 1
+
+        try:
+            bands = mc_results.bands
+            if col not in bands.columns:
+                continue
+            quarters = list(bands.xs(0.50, level="quantile").index)
+            p10 = (bands.xs(0.10, level="quantile")[col] * scale).tolist()
+            p50 = (bands.xs(0.50, level="quantile")[col] * scale).tolist()
+            p90 = (bands.xs(0.90, level="quantile")[col] * scale).tolist()
+
+            fig.add_trace(go.Scatter(
+                x=quarters + quarters[::-1], y=p90 + p10[::-1],
+                fill="toself", fillcolor="rgba(41,128,185,0.15)",
+                line=dict(color="rgba(255,255,255,0)"),
+                name="10–90th pct", showlegend=(idx == 0),
+            ), row=row, col=col_pos)
+            fig.add_trace(go.Scatter(
+                x=quarters, y=p50,
+                line=dict(color="#1a5276", width=2),
+                name="Median", showlegend=(idx == 0),
+            ), row=row, col=col_pos)
+        except Exception:
+            continue
+
+    fig.update_layout(height=600, title_text=f"MC Uncertainty Bands (n={mc_results.n_runs})")
+    return fig
+
+
 def _plot_employment(df: pd.DataFrame, out: Path, name: str) -> Optional[Path]:
     fig, ax = plt.subplots(figsize=(10, 5))
     quarters = df["quarter"]
