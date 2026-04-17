@@ -1,0 +1,107 @@
+scenario_name: "broadly_agentic"
+horizon_quarters: 40
+seed: 42
+
+# AI becomes broadly agentic: coordination and orchestration capabilities
+# cross reliability floors. Multi-step autonomous tasks become deployable.
+# Regulatory response is significant in healthcare and infrastructure.
+
+capability_trajectory:
+  routine_information_processing:
+    - {quarter: 0, value: 0.85}
+    - {quarter: 40, value: 0.99}
+  pattern_recognition_classification:
+    - {quarter: 0, value: 0.80}
+    - {quarter: 40, value: 0.97}
+  structured_writing_communication:
+    - {quarter: 0, value: 0.70}
+    - {quarter: 40, value: 0.95}
+  creative_synthesis:
+    - {quarter: 0, value: 0.40}
+    - {quarter: 40, value: 0.80}
+  quantitative_analysis:
+    - {quarter: 0, value: 0.75}
+    - {quarter: 40, value: 0.97}
+  judgment_under_uncertainty:
+    - {quarter: 0, value: 0.35}
+    - {quarter: 30, value: 0.88}
+    - {quarter: 40, value: 0.92}
+  interpersonal_relationship:
+    - {quarter: 0, value: 0.20}
+    - {quarter: 40, value: 0.65}
+  physical_presence:
+    - {quarter: 0, value: 0.10}
+    - {quarter: 40, value: 0.45}
+  novel_problem_solving:
+    - {quarter: 0, value: 0.45}
+    - {quarter: 40, value: 0.90}
+  coordination_orchestration:
+    - {quarter: 0, value: 0.50}
+    - {quarter: 25, value: 0.85}
+    - {quarter: 40, value: 0.97}
+
+reliability_floors:
+  routine_information_processing: 0.75
+  pattern_recognition_classification: 0.70
+  structured_writing_communication: 0.70
+  creative_synthesis: 0.80
+  quantitative_analysis: 0.75
+  judgment_under_uncertainty: 0.90
+  interpersonal_relationship: 0.85
+  physical_presence: 0.80
+  novel_problem_solving: 0.85
+  coordination_orchestration: 0.80
+
+compute:
+  cost_per_unit_trajectory:
+    - {quarter: 0, value: 1.0}
+    - {quarter: 40, value: 0.2}
+  chip_supply_growth_annual: 0.20
+
+energy:
+  price_trajectory:
+    - {quarter: 0, value: 1.0}
+    - {quarter: 40, value: 1.35}
+
+regulation:
+  ai_compute: 0.10
+  knowledge_work: 0.25
+  services: 0.60
+  goods: 0.20
+  infrastructure: 0.80
+
+oss_frontier_gap: 1.0
+
+demographics:
+  labor_force_growth_annual: 0.005
+  retirement_rate_annual: 0.02
+
+robotics:
+  # Agentic: coordination capability crosses threshold, robots arrive q20
+  deployment_start_quarter: 20
+  diffusion_rate: 0.04
+  max_labor_displacement: 0.35
+  affected_sectors: [services, goods, infrastructure]
+
+sentiment:
+  # Agentic: autonomous agents reduce interface friction but raise consumer concern
+  consumer_ai_discount:
+    ai_compute: 0.00
+    knowledge_work: 0.12
+    services: 0.28
+    goods: 0.04
+    infrastructure: 0.02
+  workforce_resistance:
+    ai_compute: 0.02
+    knowledge_work: 0.14
+    services: 0.20
+    goods: 0.07
+    infrastructure: 0.09
+
+interface_realization:
+  # Agentic interfaces are more natural but arrive later
+  trajectory:
+    - {quarter: 0,  value: 0.35}
+    - {quarter: 16, value: 0.55}
+    - {quarter: 28, value: 0.80}
+    - {quarter: 40, value: 0.90}

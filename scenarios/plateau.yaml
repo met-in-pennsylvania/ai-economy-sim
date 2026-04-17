@@ -1,0 +1,113 @@
+scenario_name: "plateau"
+horizon_quarters: 40
+seed: 42
+
+# AI capability hits a plateau around quarter 10 and stagnates.
+# Deployment is limited because capabilities don't improve.
+
+capability_trajectory:
+  routine_information_processing:
+    - {quarter: 0, value: 0.85}
+    - {quarter: 10, value: 0.90}
+    - {quarter: 40, value: 0.91}
+  pattern_recognition_classification:
+    - {quarter: 0, value: 0.80}
+    - {quarter: 10, value: 0.83}
+    - {quarter: 40, value: 0.84}
+  structured_writing_communication:
+    - {quarter: 0, value: 0.70}
+    - {quarter: 10, value: 0.75}
+    - {quarter: 40, value: 0.76}
+  creative_synthesis:
+    - {quarter: 0, value: 0.40}
+    - {quarter: 10, value: 0.45}
+    - {quarter: 40, value: 0.46}
+  quantitative_analysis:
+    - {quarter: 0, value: 0.75}
+    - {quarter: 10, value: 0.80}
+    - {quarter: 40, value: 0.81}
+  judgment_under_uncertainty:
+    - {quarter: 0, value: 0.35}
+    - {quarter: 10, value: 0.38}
+    - {quarter: 40, value: 0.39}
+  interpersonal_relationship:
+    - {quarter: 0, value: 0.20}
+    - {quarter: 10, value: 0.22}
+    - {quarter: 40, value: 0.22}
+  physical_presence:
+    - {quarter: 0, value: 0.10}
+    - {quarter: 10, value: 0.12}
+    - {quarter: 40, value: 0.12}
+  novel_problem_solving:
+    - {quarter: 0, value: 0.45}
+    - {quarter: 10, value: 0.50}
+    - {quarter: 40, value: 0.51}
+  coordination_orchestration:
+    - {quarter: 0, value: 0.50}
+    - {quarter: 10, value: 0.55}
+    - {quarter: 40, value: 0.55}
+
+reliability_floors:
+  routine_information_processing: 0.75
+  pattern_recognition_classification: 0.70
+  structured_writing_communication: 0.70
+  creative_synthesis: 0.80
+  quantitative_analysis: 0.75
+  judgment_under_uncertainty: 0.90
+  interpersonal_relationship: 0.85
+  physical_presence: 0.80
+  novel_problem_solving: 0.85
+  coordination_orchestration: 0.80
+
+compute:
+  cost_per_unit_trajectory:
+    - {quarter: 0, value: 1.0}
+    - {quarter: 40, value: 0.7}
+  chip_supply_growth_annual: 0.08
+
+energy:
+  price_trajectory:
+    - {quarter: 0, value: 1.0}
+    - {quarter: 40, value: 1.1}
+
+regulation:
+  ai_compute: 0.10
+  knowledge_work: 0.25
+  services: 0.55
+  goods: 0.20
+  infrastructure: 0.75
+
+oss_frontier_gap: 0.3
+
+demographics:
+  labor_force_growth_annual: 0.005
+  retirement_rate_annual: 0.02
+
+robotics:
+  # Plateau: AI stagnates so robots also arrive late and diffuse slowly
+  deployment_start_quarter: 999
+  diffusion_rate: 0.02
+  max_labor_displacement: 0.25
+  affected_sectors: [services, goods, infrastructure]
+
+sentiment:
+  # Plateau: stagnation breeds more distrust; resistance stays high
+  consumer_ai_discount:
+    ai_compute: 0.00
+    knowledge_work: 0.12
+    services: 0.25
+    goods: 0.04
+    infrastructure: 0.02
+  workforce_resistance:
+    ai_compute: 0.03
+    knowledge_work: 0.22
+    services: 0.28
+    goods: 0.10
+    infrastructure: 0.12
+
+interface_realization:
+  # Interfaces improve slowly because investment dries up after plateau
+  trajectory:
+    - {quarter: 0,  value: 0.35}
+    - {quarter: 20, value: 0.48}
+    - {quarter: 40, value: 0.58}

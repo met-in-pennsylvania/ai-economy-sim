@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-econ-sim"
+version = "0.1.0"
+description = "AI-Economy Macro Simulation v0 — stylized prototype"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.1",
+    "pyyaml>=6.0",
+    "matplotlib>=3.8",
+    "plotly>=5.18",
+    "streamlit>=1.30",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4", "pytest-cov"]
+
+[project.scripts]
+ai-econ-sim = "ai_econ_sim.run:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ai_econ_sim*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

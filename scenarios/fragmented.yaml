@@ -1,0 +1,104 @@
+scenario_name: "fragmented_capable_unreliable"
+horizon_quarters: 40
+seed: 42
+
+# Reference scenario: capable but deployment-gated by reliability floors.
+# OSS is close to frontier (gap=0.5), limiting capital concentration.
+
+capability_trajectory:
+  routine_information_processing:
+    - {quarter: 0, value: 0.85}
+    - {quarter: 20, value: 0.95}
+    - {quarter: 40, value: 0.98}
+  pattern_recognition_classification:
+    - {quarter: 0, value: 0.80}
+    - {quarter: 40, value: 0.95}
+  structured_writing_communication:
+    - {quarter: 0, value: 0.70}
+    - {quarter: 40, value: 0.90}
+  creative_synthesis:
+    - {quarter: 0, value: 0.40}
+    - {quarter: 40, value: 0.65}
+  quantitative_analysis:
+    - {quarter: 0, value: 0.75}
+    - {quarter: 40, value: 0.92}
+  judgment_under_uncertainty:
+    - {quarter: 0, value: 0.35}
+    - {quarter: 40, value: 0.55}
+  interpersonal_relationship:
+    - {quarter: 0, value: 0.20}
+    - {quarter: 40, value: 0.35}
+  physical_presence:
+    - {quarter: 0, value: 0.10}
+    - {quarter: 40, value: 0.20}
+  novel_problem_solving:
+    - {quarter: 0, value: 0.45}
+    - {quarter: 40, value: 0.70}
+  coordination_orchestration:
+    - {quarter: 0, value: 0.50}
+    - {quarter: 40, value: 0.75}
+
+reliability_floors:
+  routine_information_processing: 0.75
+  pattern_recognition_classification: 0.70
+  structured_writing_communication: 0.70
+  creative_synthesis: 0.80
+  quantitative_analysis: 0.75
+  judgment_under_uncertainty: 0.90
+  interpersonal_relationship: 0.85
+  physical_presence: 0.80
+  novel_problem_solving: 0.85
+  coordination_orchestration: 0.80
+
+compute:
+  cost_per_unit_trajectory:
+    - {quarter: 0, value: 1.0}
+    - {quarter: 40, value: 0.3}
+  chip_supply_growth_annual: 0.15
+
+energy:
+  price_trajectory:
+    - {quarter: 0, value: 1.0}
+    - {quarter: 40, value: 1.2}
+
+regulation:
+  ai_compute: 0.10
+  knowledge_work: 0.20
+  services: 0.50
+  goods: 0.15
+  infrastructure: 0.70
+
+oss_frontier_gap: 0.5
+
+demographics:
+  labor_force_growth_annual: 0.005
+  retirement_rate_annual: 0.02
+
+robotics:
+  # Optimus-class robots: not yet deployed in reference scenario
+  deployment_start_quarter: 999
+  diffusion_rate: 0.03
+  max_labor_displacement: 0.35
+  affected_sectors: [services, goods, infrastructure]
+
+sentiment:
+  # Fragmented/cautious: meaningful consumer preference for human delivery,
+  # significant Gen Z workforce resistance in knowledge work and services
+  consumer_ai_discount:
+    ai_compute: 0.00
+    knowledge_work: 0.10
+    services: 0.20
+    goods: 0.03
+    infrastructure: 0.01
+  workforce_resistance:
+    ai_compute: 0.02
+    knowledge_work: 0.18
+    services: 0.22
+    goods: 0.08
+    infrastructure: 0.10
+
+interface_realization:
+  trajectory:
+    - {quarter: 0,  value: 0.35}
+    - {quarter: 20, value: 0.60}
+    - {quarter: 40, value: 0.78}

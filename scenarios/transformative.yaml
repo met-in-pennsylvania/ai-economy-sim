@@ -1,0 +1,119 @@
+scenario_name: "transformative"
+horizon_quarters: 40
+seed: 42
+
+# Near-AGI scenario: capability crosses almost all reliability floors within 20 quarters.
+# Massive productivity gains; severe labor displacement in knowledge work.
+# Significant capital concentration as OSS lags far behind frontier.
+
+capability_trajectory:
+  routine_information_processing:
+    - {quarter: 0, value: 0.90}
+    - {quarter: 8, value: 0.99}
+    - {quarter: 40, value: 1.00}
+  pattern_recognition_classification:
+    - {quarter: 0, value: 0.85}
+    - {quarter: 8, value: 0.97}
+    - {quarter: 40, value: 1.00}
+  structured_writing_communication:
+    - {quarter: 0, value: 0.75}
+    - {quarter: 10, value: 0.95}
+    - {quarter: 40, value: 1.00}
+  creative_synthesis:
+    - {quarter: 0, value: 0.50}
+    - {quarter: 15, value: 0.85}
+    - {quarter: 40, value: 0.98}
+  quantitative_analysis:
+    - {quarter: 0, value: 0.80}
+    - {quarter: 10, value: 0.97}
+    - {quarter: 40, value: 1.00}
+  judgment_under_uncertainty:
+    - {quarter: 0, value: 0.45}
+    - {quarter: 15, value: 0.88}
+    - {quarter: 25, value: 0.95}
+    - {quarter: 40, value: 0.98}
+  interpersonal_relationship:
+    - {quarter: 0, value: 0.25}
+    - {quarter: 20, value: 0.75}
+    - {quarter: 40, value: 0.90}
+  physical_presence:
+    - {quarter: 0, value: 0.15}
+    - {quarter: 20, value: 0.60}
+    - {quarter: 40, value: 0.80}
+  novel_problem_solving:
+    - {quarter: 0, value: 0.55}
+    - {quarter: 15, value: 0.92}
+    - {quarter: 40, value: 0.99}
+  coordination_orchestration:
+    - {quarter: 0, value: 0.55}
+    - {quarter: 15, value: 0.90}
+    - {quarter: 40, value: 0.99}
+
+reliability_floors:
+  routine_information_processing: 0.75
+  pattern_recognition_classification: 0.70
+  structured_writing_communication: 0.70
+  creative_synthesis: 0.80
+  quantitative_analysis: 0.75
+  judgment_under_uncertainty: 0.90
+  interpersonal_relationship: 0.85
+  physical_presence: 0.80
+  novel_problem_solving: 0.85
+  coordination_orchestration: 0.80
+
+compute:
+  cost_per_unit_trajectory:
+    - {quarter: 0, value: 1.0}
+    - {quarter: 15, value: 0.2}
+    - {quarter: 40, value: 0.05}
+  chip_supply_growth_annual: 0.35
+
+energy:
+  price_trajectory:
+    - {quarter: 0, value: 1.0}
+    - {quarter: 20, value: 1.6}
+    - {quarter: 40, value: 2.0}
+
+regulation:
+  ai_compute: 0.05
+  knowledge_work: 0.10
+  services: 0.35
+  goods: 0.08
+  infrastructure: 0.45
+
+oss_frontier_gap: 3.0
+
+demographics:
+  labor_force_growth_annual: 0.003
+  retirement_rate_annual: 0.02
+
+robotics:
+  # Transformative: robots arrive early and diffuse fast — near-AGI hardware
+  deployment_start_quarter: 8
+  diffusion_rate: 0.08
+  max_labor_displacement: 0.50
+  affected_sectors: [services, goods, infrastructure]
+
+sentiment:
+  # Transformative: AI is unavoidable so resistance erodes; consumer preference
+  # persists but weakens as human-only alternatives become scarce/expensive
+  consumer_ai_discount:
+    ai_compute: 0.00
+    knowledge_work: 0.05
+    services: 0.12
+    goods: 0.02
+    infrastructure: 0.01
+  workforce_resistance:
+    ai_compute: 0.01
+    knowledge_work: 0.08
+    services: 0.10
+    goods: 0.04
+    infrastructure: 0.06
+
+interface_realization:
+  # Near-AGI makes interfaces essentially invisible by mid-sim
+  trajectory:
+    - {quarter: 0,  value: 0.40}
+    - {quarter: 12, value: 0.72}
+    - {quarter: 24, value: 0.90}
+    - {quarter: 40, value: 0.97}
