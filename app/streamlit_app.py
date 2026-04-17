@@ -245,6 +245,12 @@ if st.session_state.last_run is not None:
         if fig is not None:
             st.plotly_chart(fig, use_container_width=True)
 
+    # Calibration report (single runs only)
+    if history and run["scenario_name"] == "calibrated_baseline_2023":
+        with st.expander("BEA/BLS Calibration Report"):
+            from ai_econ_sim.calibration import calibration_report
+            st.code(calibration_report(history), language=None)
+
     # Raw data expander
     with st.expander("Raw time series data"):
         st.dataframe(df.round(4), use_container_width=True)

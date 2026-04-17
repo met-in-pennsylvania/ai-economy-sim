@@ -22,6 +22,8 @@ def main() -> None:
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING"])
     parser.add_argument("--monte-carlo", type=int, default=0, metavar="N",
                         help="Run N Monte Carlo simulations and produce uncertainty bands. 0 = single run.")
+    parser.add_argument("--calibration-report", action="store_true",
+                        help="Print BEA/BLS calibration comparison after single run.")
     args = parser.parse_args()
 
     logging.basicConfig(format=LOG_FORMAT, datefmt=LOG_DATEFMT, level=getattr(logging, args.log_level))
@@ -55,6 +57,10 @@ def _run_single(scenario, args, scale, run_name, log) -> None:
 
     paths = save_outputs(history, model, args.output_dir, run_name)
     log.info("Outputs saved: %s", {k: str(v) for k, v in paths.items()})
+
+    if getattr(args, "calibration_report", False):
+        from ai_econ_sim.calibration import calibration_report
+        print(calibration_report(history))
 
     if not args.no_plots:
         df = build_time_series(history)

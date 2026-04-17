@@ -4,22 +4,24 @@ from dataclasses import dataclass, field
 
 SECTORS = ["ai_compute", "knowledge_work", "services", "goods", "infrastructure"]
 
-# Default firm counts per sector (sums to ~1000)
+# Default firm counts per sector (sums to 1000)
+# Proportional to calibrated employment shares; services/goods more atomized
 FIRM_COUNTS = {
-    "ai_compute": 30,
-    "knowledge_work": 280,
-    "services": 350,
-    "goods": 250,
-    "infrastructure": 90,
+    "ai_compute":     26,
+    "knowledge_work": 145,
+    "services":       563,
+    "goods":          138,
+    "infrastructure": 128,
 }
 
-# Default worker counts per sector (sums to ~10000)
+# Default worker counts per sector (sums to 10000)
+# Shares calibrated to BLS CES 2023 private-sector employment (see calibration/bea_bls.py)
 WORKER_COUNTS = {
-    "ai_compute": 200,
-    "knowledge_work": 2500,
-    "services": 3500,
-    "goods": 2500,
-    "infrastructure": 1300,
+    "ai_compute":     260,
+    "knowledge_work": 1450,
+    "services":       5630,
+    "goods":          1380,
+    "infrastructure": 1280,
 }
 
 # Knowledge-work occupation buckets
@@ -48,13 +50,14 @@ SIZE_TIERS = [
 # Power-law exponent for firm size distribution
 FIRM_SIZE_PARETO_ALPHA = 1.5
 
-# Base sector growth rates (annual, before AI)
+# Base sector growth rates (annual real CAGR, before AI)
+# Calibrated to 2015–2019 BLS/BEA historical averages (see calibration/bea_bls.py)
 BASE_GROWTH_RATES = {
-    "ai_compute": 0.08,
-    "knowledge_work": 0.02,
-    "services": 0.02,
-    "goods": 0.01,
-    "infrastructure": 0.01,
+    "ai_compute":     0.08,
+    "knowledge_work": 0.04,
+    "services":       0.025,
+    "goods":          0.015,
+    "infrastructure": 0.025,
 }
 
 # AI spillover coefficient for non-knowledge-work sectors
@@ -111,12 +114,13 @@ MARKUP_ADJUSTMENT_SPEED = 0.1  # fraction of gap closed per quarter
 HIRING_SPEED = 0.3  # fraction of desired adjustment made per quarter
 
 # Wage setting
+# Calibrated to BLS OES 2023 median annual wages (see calibration/bea_bls.py)
 WAGE_BASE_BY_SECTOR = {
-    "ai_compute": 120_000,
-    "knowledge_work": 90_000,
-    "services": 45_000,
-    "goods": 55_000,
-    "infrastructure": 65_000,
+    "ai_compute":     135_000,
+    "knowledge_work":  88_000,
+    "services":        44_000,
+    "goods":           52_000,
+    "infrastructure":  59_000,
 }
 WAGE_SKILL_PREMIUM = 0.15  # per skill level above 1 (annual)
 WAGE_IDIOSYNCRATIC_STD = 0.05  # noise std on log wages

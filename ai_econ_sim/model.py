@@ -35,9 +35,23 @@ class Model:
 
         self.rng = np.random.default_rng(scenario.seed)
 
-        # Scale populations
-        self._firm_counts = {s: max(5, round(n * population_scale)) for s, n in FIRM_COUNTS.items()}
-        self._worker_counts = {s: max(50, round(n * population_scale)) for s, n in WORKER_COUNTS.items()}
+        # Scale populations — use employment_shares from initial_conditions when provided,
+        # otherwise fall back to config defaults.
+        ic_emp = scenario.initial_conditions.employment_shares
+        if ic_emp:
+            total_firms_base = sum(FIRM_COUNTS.values())
+            total_workers_base = sum(WORKER_COUNTS.values())
+            self._firm_counts = {
+                s: max(5, round(ic_emp.get(s, FIRM_COUNTS[s] / total_firms_base) * total_firms_base * population_scale))
+                for s in SECTORS
+            }
+            self._worker_counts = {
+                s: max(10, round(ic_emp[s] * total_workers_base * population_scale))
+                for s in SECTORS
+            }
+        else:
+            self._firm_counts = {s: max(5, round(n * population_scale)) for s, n in FIRM_COUNTS.items()}
+            self._worker_counts = {s: max(50, round(n * population_scale)) for s, n in WORKER_COUNTS.items()}
         total_workers = sum(self._worker_counts.values())
 
         ic = scenario.initial_conditions

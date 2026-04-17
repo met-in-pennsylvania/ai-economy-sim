@@ -1,0 +1,128 @@
+scenario_name: "calibrated_baseline_2023"
+horizon_quarters: 40
+seed: 42
+
+# Starting conditions calibrated to 2023 BEA/BLS data.
+# GDP shares, employment shares, and wages anchor to real sector data.
+# Capability trajectory is moderate — AI improves steadily but not transformatively.
+# Use this as the reference point for comparing against stylized scenarios.
+
+initial_conditions:
+  nominal_gdp: 20400000000000   # $20.4T: private-sector US economy ex-govt ex-real-estate
+  gdp_shares:
+    ai_compute:     0.101
+    knowledge_work: 0.289
+    services:       0.324
+    goods:          0.179
+    infrastructure: 0.107
+  employment_shares:
+    ai_compute:     0.026
+    knowledge_work: 0.145
+    services:       0.563
+    goods:          0.138
+    infrastructure: 0.128
+  initial_wages:
+    ai_compute:     135000
+    knowledge_work:  88000
+    services:        44000
+    goods:           52000
+    infrastructure:  59000
+
+capability_trajectory:
+  # Moderate AI progress: improves meaningfully but no step-change
+  routine_information_processing:
+    - {quarter: 0,  value: 0.80}
+    - {quarter: 20, value: 0.92}
+    - {quarter: 40, value: 0.96}
+  pattern_recognition_classification:
+    - {quarter: 0,  value: 0.75}
+    - {quarter: 40, value: 0.92}
+  structured_writing_communication:
+    - {quarter: 0,  value: 0.65}
+    - {quarter: 40, value: 0.85}
+  creative_synthesis:
+    - {quarter: 0,  value: 0.38}
+    - {quarter: 40, value: 0.60}
+  quantitative_analysis:
+    - {quarter: 0,  value: 0.72}
+    - {quarter: 40, value: 0.88}
+  judgment_under_uncertainty:
+    - {quarter: 0,  value: 0.30}
+    - {quarter: 40, value: 0.50}
+  interpersonal_relationship:
+    - {quarter: 0,  value: 0.18}
+    - {quarter: 40, value: 0.30}
+  physical_presence:
+    - {quarter: 0,  value: 0.08}
+    - {quarter: 40, value: 0.18}
+  novel_problem_solving:
+    - {quarter: 0,  value: 0.42}
+    - {quarter: 40, value: 0.65}
+  coordination_orchestration:
+    - {quarter: 0,  value: 0.48}
+    - {quarter: 40, value: 0.72}
+
+reliability_floors:
+  routine_information_processing: 0.75
+  pattern_recognition_classification: 0.70
+  structured_writing_communication: 0.70
+  creative_synthesis: 0.80
+  quantitative_analysis: 0.75
+  judgment_under_uncertainty: 0.90
+  interpersonal_relationship: 0.85
+  physical_presence: 0.80
+  novel_problem_solving: 0.85
+  coordination_orchestration: 0.80
+
+compute:
+  cost_per_unit_trajectory:
+    - {quarter: 0, value: 1.0}
+    - {quarter: 40, value: 0.35}
+  chip_supply_growth_annual: 0.15
+
+energy:
+  price_trajectory:
+    - {quarter: 0, value: 1.0}
+    - {quarter: 40, value: 1.15}
+
+regulation:
+  # Moderate, roughly current-state US regulatory environment
+  ai_compute:     0.05
+  knowledge_work: 0.15
+  services:       0.40
+  goods:          0.12
+  infrastructure: 0.60
+
+oss_frontier_gap: 0.8  # OSS lags frontier by ~1 generation
+
+demographics:
+  labor_force_growth_annual: 0.004   # slower than 2010s (aging workforce)
+  retirement_rate_annual: 0.022      # boomers retiring faster
+
+robotics:
+  # Physical robots not widely deployed in baseline 10-year horizon
+  deployment_start_quarter: 999
+  diffusion_rate: 0.03
+  max_labor_displacement: 0.35
+  affected_sectors: [services, goods, infrastructure]
+
+sentiment:
+  # Empirically grounded: meaningful but not dominant resistance
+  consumer_ai_discount:
+    ai_compute:     0.00
+    knowledge_work: 0.08
+    services:       0.18
+    goods:          0.03
+    infrastructure: 0.01
+  workforce_resistance:
+    ai_compute:     0.02
+    knowledge_work: 0.16
+    services:       0.20
+    goods:          0.08
+    infrastructure: 0.09
+
+interface_realization:
+  trajectory:
+    - {quarter: 0,  value: 0.35}
+    - {quarter: 20, value: 0.58}
+    - {quarter: 40, value: 0.75}
