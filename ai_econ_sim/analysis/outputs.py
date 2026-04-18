@@ -29,6 +29,12 @@ def build_time_series(history: list[MacroAccounts]) -> pd.DataFrame:
             row[f"robotics_adoption_{s}"] = accts.sector_robotics_adoption.get(s, 0.0)
 
         row["interface_realization"] = accts.interface_realization
+        row["retirements"] = accts.retirements
+        row["new_entrants"] = accts.new_entrants
+        row["firm_exits"] = accts.firm_exits
+        row["firm_entries"] = accts.firm_entries
+        for gen in ("boomer", "genx", "millennial", "genz"):
+            row[f"employed_{gen}"] = accts.gen_employment.get(gen, 0)
         row["labor_share"] = accts.total_labor_income / max(1.0, accts.nominal_gdp)
         row["capital_share"] = accts.total_capital_income / max(1.0, accts.nominal_gdp)
         row["ai_capital_share"] = accts.ai_sector_capital_income / max(1.0, accts.nominal_gdp)

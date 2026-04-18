@@ -240,10 +240,15 @@ if st.session_state.last_run is not None:
         if fig2:
             st.plotly_chart(fig2, use_container_width=True)
     else:
-        from ai_econ_sim.analysis.plots import build_plotly_dashboard
+        from ai_econ_sim.analysis.plots import build_plotly_dashboard, build_plotly_demography_dashboard
         fig = build_plotly_dashboard(df)
         if fig is not None:
             st.plotly_chart(fig, use_container_width=True)
+
+        fig_demo = build_plotly_demography_dashboard(df)
+        if fig_demo is not None:
+            st.subheader("Workforce Demographics & Firm Dynamics")
+            st.plotly_chart(fig_demo, use_container_width=True)
 
     # Calibration report (single runs only)
     if history and run["scenario_name"] == "calibrated_baseline_2023":

@@ -15,6 +15,38 @@ from ai_econ_sim.config import (
     KW_OCCUPATIONS, EXPECTATION_HALFLIFE_QUARTERS,
 )
 
+# Generation labels assigned from birth year (2024 baseline)
+GENERATION_LABELS = ("boomer", "genx", "millennial", "genz")
+
+# Multiplier on retraining initiation probability per generation
+# GenZ is most mobile; Boomers least likely to retrain
+GENERATION_RETRAINING_MULT: dict[str, float] = {
+    "boomer":     0.30,
+    "genx":       0.65,
+    "millennial": 1.10,
+    "genz":       1.30,
+}
+
+# LFP exit probability multiplier per generation when long-term unemployed
+# GenZ more likely to exit to gig/informal economy or schooling
+GENERATION_LFP_EXIT_MULT: dict[str, float] = {
+    "boomer":     1.20,  # early retirement if prospects bad
+    "genx":       0.90,
+    "millennial": 0.85,
+    "genz":       1.40,  # more likely to NEET or side-hustle out
+}
+
+
+def _assign_generation(age: float) -> str:
+    """Assign generation label based on age at simulation start (2024)."""
+    if age >= 60:
+        return "boomer"
+    if age >= 44:
+        return "genx"
+    if age >= 28:
+        return "millennial"
+    return "genz"
+
 
 @dataclass
 class RetrainingState:
@@ -27,12 +59,13 @@ class RetrainingState:
 @dataclass
 class Worker:
     id: int
-    age: int                             # years
+    age: float                           # years (advances by 0.25 each quarter)
     sector: Optional[str]                # None if out_of_labor_force
     occupation: str                      # occupation bucket
     skill_level: int                     # 1..5
     current_wage: float                  # annual
     employer_id: Optional[int]          # None if unemployed
+    generation: str = "millennial"       # boomer / genx / millennial / genz
     is_employed: bool = True
     is_in_labor_force: bool = True
     quarters_unemployed: int = 0
@@ -99,7 +132,8 @@ class Worker:
         # Probability of initiating retraining (higher for younger, higher-skill workers)
         age_factor = max(0.1, 1.0 - 0.02 * max(0, self.age - 30))
         skill_factor = 0.3 + 0.1 * self.skill_level
-        prob = age_factor * skill_factor * 0.15  # base 15% if conditions met
+        gen_mult = GENERATION_RETRAINING_MULT.get(self.generation, 1.0)
+        prob = age_factor * skill_factor * 0.15 * gen_mult  # base 15% if conditions met
 
         if rng.random() > prob:
             return False
@@ -131,7 +165,8 @@ class Worker:
         if self.is_in_labor_force and not self.is_employed:
             self.quarters_unemployed += 1
             if self.quarters_unemployed >= LFP_EXIT_THRESHOLD_QUARTERS:
-                if rng.random() < LFP_EXIT_PROBABILITY:
+                gen_mult = GENERATION_LFP_EXIT_MULT.get(self.generation, 1.0)
+                if rng.random() < LFP_EXIT_PROBABILITY * gen_mult:
                     self.is_in_labor_force = False
                     self.sector = None
                     self.quarters_unemployed = 0
@@ -185,7 +220,7 @@ def create_workers(
     """Initialize a population of workers for a sector."""
     workers = []
     for i in range(n_workers):
-        age = int(rng.integers(22, 65))
+        age = float(rng.integers(22, 65))
         skill = int(rng.integers(SKILL_MIN, SKILL_MAX + 1))
 
         # Occupation depends on sector
@@ -210,6 +245,7 @@ def create_workers(
             skill_level=skill,
             current_wage=wage,
             employer_id=emp_id,
+            generation=_assign_generation(age),
             is_employed=(emp_id is not None),
         )
         workers.append(w)

@@ -55,6 +55,9 @@ class Firm:
     # Current wage offer (annual, for hiring)
     wage_offer: float = 0.0
 
+    # Consecutive quarters with negative profit (bankruptcy counter)
+    consecutive_losses: int = 0
+
     def init_expectations(
         self, sector_demand: float, own_wage: float,
         ai_capability: float, peer_adoption: float,
@@ -176,6 +179,11 @@ class Firm:
         # Revenue: value added proxy = labor + capital + markup profit
         self.revenue = (self.labor_cost + self.capital_cost) * self.price_level * self.productivity_multiplier
         self.profit = self.revenue - self.labor_cost - self.capital_cost
+
+        if self.profit < 0:
+            self.consecutive_losses += 1
+        else:
+            self.consecutive_losses = 0
 
     def hire_worker(self) -> bool:
         """Accept one worker from the matching pool. Returns True if firm wanted a worker."""

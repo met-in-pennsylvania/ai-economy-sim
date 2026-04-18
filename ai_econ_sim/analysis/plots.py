@@ -399,3 +399,97 @@ def build_plotly_dashboard(df: pd.DataFrame) -> Any:
 
     fig.update_layout(height=900, showlegend=True, title_text="AI-Economy Simulation Dashboard")
     return fig
+
+
+GENERATION_COLORS = {
+    "boomer":     "#e67e22",
+    "genx":       "#2980b9",
+    "millennial": "#27ae60",
+    "genz":       "#8e44ad",
+}
+
+GENERATION_LABELS = {
+    "boomer":     "Boomers (60+)",
+    "genx":       "Gen X (44–59)",
+    "millennial": "Millennials (28–43)",
+    "genz":       "Gen Z (22–27)",
+}
+
+
+def build_plotly_demography_dashboard(df: pd.DataFrame) -> Any:
+    """
+    Plotly figure showing generational employment composition and firm dynamics.
+    Only rendered when the time-series contains the Phase 3 columns.
+    """
+    if not HAS_PLOTLY:
+        return None
+
+    gen_cols = [f"employed_{g}" for g in ("boomer", "genx", "millennial", "genz")]
+    if not all(c in df.columns for c in gen_cols):
+        return None
+
+    fig = make_subplots(
+        rows=2, cols=2,
+        subplot_titles=[
+            "Employment by Generation",
+            "Gen Share of Employment (%)",
+            "Firm Entry & Exit (per quarter)",
+            "Demographic Flows (per quarter)",
+        ],
+    )
+    q = df["quarter"]
+
+    # Absolute generational employment
+    for g in ("boomer", "genx", "millennial", "genz"):
+        col = f"employed_{g}"
+        if col in df.columns:
+            fig.add_trace(go.Scatter(
+                x=q, y=df[col], name=GENERATION_LABELS[g],
+                line=dict(color=GENERATION_COLORS[g]),
+                legendgroup=g,
+            ), row=1, col=1)
+
+    # Generational share
+    total_gen = sum(df.get(f"employed_{g}", 0) for g in ("boomer", "genx", "millennial", "genz"))
+    total_gen = total_gen.replace(0, float("nan"))
+    for g in ("boomer", "genx", "millennial", "genz"):
+        col = f"employed_{g}"
+        if col in df.columns:
+            share = df[col] / total_gen * 100
+            fig.add_trace(go.Scatter(
+                x=q, y=share, name=GENERATION_LABELS[g],
+                line=dict(color=GENERATION_COLORS[g]),
+                legendgroup=g, showlegend=False,
+            ), row=1, col=2)
+
+    # Firm entry/exit
+    if "firm_entries" in df.columns:
+        fig.add_trace(go.Bar(
+            x=q, y=df["firm_entries"], name="Entries",
+            marker_color="#27ae60", opacity=0.7,
+        ), row=2, col=1)
+    if "firm_exits" in df.columns:
+        fig.add_trace(go.Bar(
+            x=q, y=-df["firm_exits"], name="Exits",
+            marker_color="#e74c3c", opacity=0.7,
+        ), row=2, col=1)
+
+    # Demographic flows
+    if "new_entrants" in df.columns:
+        fig.add_trace(go.Bar(
+            x=q, y=df["new_entrants"], name="New entrants",
+            marker_color="#2980b9", opacity=0.7,
+        ), row=2, col=2)
+    if "retirements" in df.columns:
+        fig.add_trace(go.Bar(
+            x=q, y=-df["retirements"], name="Retirements",
+            marker_color="#e67e22", opacity=0.7,
+        ), row=2, col=2)
+
+    fig.update_layout(
+        height=700,
+        barmode="overlay",
+        showlegend=True,
+        title_text="Workforce Demographics & Firm Dynamics",
+    )
+    return fig

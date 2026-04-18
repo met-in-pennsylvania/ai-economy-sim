@@ -15,7 +15,7 @@ from ai_econ_sim.sectors import SECTOR_DEFINITIONS
 from ai_econ_sim.scenarios.loader import Scenario
 from ai_econ_sim.capability.tasks import compute_occupation_exposure
 from ai_econ_sim.agents.firm import Firm, create_firms
-from ai_econ_sim.agents.worker import Worker, create_workers
+from ai_econ_sim.agents.worker import Worker, create_workers, _assign_generation, _sector_default_occupation, _sample_occupation
 from ai_econ_sim.macro.accounting import MacroAccounting, MacroAccounts
 from ai_econ_sim.capability.trajectory import CapabilityTrajectory
 
@@ -117,6 +117,14 @@ class Model:
         # Track occupation exposures for knowledge_work
         self._kw_occupation_exposure: np.ndarray = np.zeros(4)
 
+        # Demographic flow counters (reset each quarter)
+        self._retirements_this_quarter: int = 0
+        self._new_entrants_this_quarter: int = 0
+        self._firm_exits_this_quarter: int = 0
+        self._firm_entries_this_quarter: int = 0
+        self._next_worker_id: int = self._worker_id_offset
+        self._next_firm_id: dict[str, int] = {s: max((f.id for f in self.firms[s]), default=-1) + 1 for s in SECTORS}
+
         log.info("Model initialized: %d firms, %d workers, scenario=%s",
                  sum(len(v) for v in self.firms.values()),
                  sum(len(v) for v in self.workers.values()),
@@ -148,13 +156,19 @@ class Model:
         # 4. Firm decisions
         self._step_firms(cap_idx)
 
-        # 4b. Reconcile layoffs: fire worker objects when firm headcount dropped
+        # 4b. Firm entry/exit dynamics (bankrupt firms exit; new firms enter growing sectors)
+        self._step_firm_dynamics()
+
+        # 4c. Reconcile layoffs: fire worker objects when firm headcount dropped
         self._reconcile_layoffs()
 
         # 5. Worker decisions (retraining, LFP)
         self._step_workers()
 
-        # 5b. Re-reconcile after workers may have left sectors via retraining
+        # 5b. Demographics: aging, retirement, new entrants
+        self._step_demographics()
+
+        # 5c. Re-reconcile after workers may have left sectors via retraining
         self._reconcile_layoffs()
 
         # 6. Labor market matching
@@ -279,6 +293,154 @@ class Model:
                 demand_pressure = (self._sector_demand[s] - 1.0) * 0.5
                 firm.step_pricing(demand_pressure)
                 firm.compute_financials(sector_wage)
+
+    def _step_firm_dynamics(self) -> None:
+        """
+        Firm entry and exit.
+
+        Exit: micro/small firms with 4+ consecutive loss quarters exit with
+        probability proportional to how long they've been losing money.
+        Workers become unemployed. Larger firms need more losses to exit.
+
+        Entry: when sector demand is sustainably high (>1.08), one small
+        entrant firm is spawned per quarter per 20 firms already in sector,
+        drawn with 1-3 initial vacancies (workers hired in matching step).
+        """
+        self._firm_exits_this_quarter = 0
+        self._firm_entries_this_quarter = 0
+
+        # Exit pass
+        for s in SECTORS:
+            surviving = []
+            for firm in self.firms[s]:
+                # Exit threshold varies by size (large firms more resilient)
+                threshold = {"micro": 3, "small": 4, "medium": 6, "large": 8}.get(firm.size_tier, 4)
+                exit_prob = {"micro": 0.35, "small": 0.20, "medium": 0.10, "large": 0.05}.get(firm.size_tier, 0.20)
+                if firm.consecutive_losses >= threshold and self.rng.random() < exit_prob:
+                    # Lay off all workers
+                    for w in self.workers.get(s, []):
+                        if w.is_employed and w.employer_id == firm.id:
+                            w.lose_job()
+                    self._firm_exits_this_quarter += 1
+                else:
+                    surviving.append(firm)
+            self.firms[s] = surviving
+
+        # Entry pass
+        for s in SECTORS:
+            demand = self._sector_demand.get(s, 1.0)
+            if demand < 1.08:
+                continue
+            n_existing = max(1, len(self.firms[s]))
+            # One entrant per 20 existing firms when demand is strong
+            entry_prob = min(0.5, (demand - 1.08) * 5.0) * (n_existing / max(1, n_existing))
+            if self.rng.random() > entry_prob:
+                continue
+
+            sector_wage = self._sector_median_wage(s)
+            new_id = self._next_firm_id[s]
+            self._next_firm_id[s] += 1
+
+            from ai_econ_sim.agents.firm import _size_tier
+            n_init = int(self.rng.integers(1, 4))
+            cap = float(n_init) * 50_000 * self.rng.uniform(0.7, 1.1)
+            peer_adopt = float(np.mean([f.ai_adoption_level for f in self.firms[s]])) if self.firms[s] else 0.05
+            cap_idx = float(self.scenario.capability.capability_at(self.quarter).mean())
+
+            new_firm = Firm(
+                id=new_id,
+                sector=s,
+                size_tier=_size_tier(n_init),
+                n_workers=0,
+                capital_stock=cap,
+                ai_capital=0.0,
+                ai_adoption_level=peer_adopt * self.rng.uniform(0.5, 1.0),
+            )
+            new_firm.init_expectations(self._sector_demand[s], sector_wage, cap_idx, peer_adopt)
+            new_firm.vacancies = n_init
+            new_firm.wage_offer = sector_wage * self.rng.uniform(0.95, 1.10)
+            self.firms[s].append(new_firm)
+            self._firm_entries_this_quarter += 1
+
+    def _step_demographics(self) -> None:
+        """
+        Quarterly demographic flows:
+          - Age all workers by 0.25 years
+          - Retire workers aged 65+ with probability (scaled by annual retirement rate)
+          - Add new entrant workers to partially replace retirees
+
+        New entrants are young (age 22–24), assigned to sectors proportional to
+        current employment distribution. They start unemployed and are picked up
+        by the matching step.
+        """
+        self._retirements_this_quarter = 0
+        self._new_entrants_this_quarter = 0
+
+        retirement_rate_quarterly = self.scenario.demographics.retirement_rate_annual / 4.0
+
+        # Age all workers and retire the old ones
+        for s in SECTORS:
+            surviving = []
+            for w in self.workers.get(s, []):
+                w.age += 0.25
+                if w.age >= 65 and self.rng.random() < retirement_rate_quarterly:
+                    # Worker retires: ensure firm headcount is synced later
+                    if w.is_employed and w.employer_id is not None:
+                        w.lose_job()  # signal to reconcile
+                    self._retirements_this_quarter += 1
+                    # Do not append — this worker leaves the model
+                else:
+                    surviving.append(w)
+            self.workers[s] = surviving
+
+        # Add new entrants to replace ~50% of retirees
+        n_entrants = max(0, round(self._retirements_this_quarter * 0.5))
+        if n_entrants == 0:
+            return
+
+        # Distribute entrants proportionally to sector employment
+        total_workers = sum(len(ws) for ws in self.workers.values())
+        if total_workers == 0:
+            return
+
+        from ai_econ_sim.config import WAGE_SKILL_PREMIUM, WAGE_IDIOSYNCRATIC_STD, WAGE_BASE_BY_SECTOR
+        for _ in range(n_entrants):
+            # Pick sector proportional to size
+            sizes = [len(self.workers[s]) for s in SECTORS]
+            probs = np.array(sizes, dtype=float)
+            probs /= probs.sum()
+            s = str(self.rng.choice(SECTORS, p=probs))
+
+            age = float(self.rng.integers(22, 25))
+            skill = max(1, int(self.rng.integers(1, 4)))  # new entrants: skill 1-3
+            occ = _sample_occupation(s, self.rng)
+            base_wage = WAGE_BASE_BY_SECTOR.get(s, 50_000)
+            log_wage = (
+                np.log(base_wage)
+                + WAGE_SKILL_PREMIUM * (skill - 1)
+                + self.rng.normal(0, WAGE_IDIOSYNCRATIC_STD)
+            )
+            wage = float(np.exp(log_wage))
+
+            w = Worker(
+                id=self._next_worker_id,
+                age=age,
+                sector=s,
+                occupation=occ,
+                skill_level=skill,
+                current_wage=wage,
+                employer_id=None,
+                generation=_assign_generation(age),
+                is_employed=False,
+                is_in_labor_force=True,
+            )
+            w.init_expectations(
+                float(len(self.workers[s])),
+                self._sector_median_wage(s),
+            )
+            self._next_worker_id += 1
+            self.workers[s].append(w)
+            self._new_entrants_this_quarter += 1
 
     def _reconcile_layoffs(self) -> None:
         """
@@ -433,7 +595,13 @@ class Model:
         total_olf = sum(1 for w in all_workers_flat if not w.is_in_labor_force)
         all_incomes = [w.current_wage for w in all_workers_flat if w.is_employed]
 
-        return self.accounting.compute(
+        # Generational employment counts
+        gen_employment: dict[str, int] = {}
+        for w in all_workers_flat:
+            if w.is_employed:
+                gen_employment[w.generation] = gen_employment.get(w.generation, 0) + 1
+
+        accts = self.accounting.compute(
             quarter=self.quarter,
             sector_labor_income=sector_labor_income,
             sector_capital_income=sector_capital_income,
@@ -451,6 +619,12 @@ class Model:
             payroll_tax_rate=PAYROLL_TAX_RATE,
             income_tax_rate=INCOME_TAX_RATE,
         )
+        accts.retirements = self._retirements_this_quarter
+        accts.new_entrants = self._new_entrants_this_quarter
+        accts.firm_exits = self._firm_exits_this_quarter
+        accts.firm_entries = self._firm_entries_this_quarter
+        accts.gen_employment = gen_employment
+        return accts
 
     def _sector_median_wage(self, sector: str) -> float:
         wages = [w.current_wage for w in self.workers.get(sector, []) if w.is_employed]
