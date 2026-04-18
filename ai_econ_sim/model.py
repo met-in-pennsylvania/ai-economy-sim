@@ -117,6 +117,11 @@ class Model:
         # Track occupation exposures for knowledge_work
         self._kw_occupation_exposure: np.ndarray = np.zeros(4)
 
+        # Retraining flow counters (reset each quarter)
+        self._retraining_initiations: int = 0
+        self._retraining_successes: int = 0
+        self._retraining_failures: int = 0
+
         # Demographic flow counters (reset each quarter)
         self._retirements_this_quarter: int = 0
         self._new_entrants_this_quarter: int = 0
@@ -473,6 +478,10 @@ class Model:
         declining = {s for s in SECTORS if self._sector_demand.get(s, 1.0) < 0.95}
         growing = [s for s in SECTORS if self._sector_demand.get(s, 1.0) > 1.02]
 
+        self._retraining_initiations = 0
+        self._retraining_successes = 0
+        self._retraining_failures = 0
+
         all_workers = [w for ws in self.workers.values() for w in ws]
 
         for w in all_workers:
@@ -486,22 +495,30 @@ class Model:
 
             w.step_update_expectations(sector_emp, sector_wage)
 
-            # Advance retraining
+            # Advance retraining — detect completions (success vs. failure)
+            was_retraining = w.retraining is not None
             completed = w.step_retraining_tick(self.rng)
-            if completed:
-                # Move worker to new sector's list
-                old_sector = None
-                for s, ws in self.workers.items():
-                    if w in ws and s != completed:
-                        old_sector = s
-                        break
-                if old_sector and old_sector != completed:
-                    self.workers[old_sector].remove(w)
-                    self.workers.setdefault(completed, []).append(w)
+            if was_retraining and w.retraining is None:
+                # Retraining episode ended this quarter
+                if completed:
+                    self._retraining_successes += 1
+                    # Move worker to new sector's list
+                    old_sector = None
+                    for s, ws in self.workers.items():
+                        if w in ws and s != completed:
+                            old_sector = s
+                            break
+                    if old_sector and old_sector != completed:
+                        self.workers[old_sector].remove(w)
+                        self.workers.setdefault(completed, []).append(w)
+                else:
+                    self._retraining_failures += 1
 
             # Retraining decision
             if not w.is_employed and w.retraining is None and sector in declining:
-                w.step_retraining_decision(self.rng, declining, growing)
+                initiated = w.step_retraining_decision(self.rng, declining, growing)
+                if initiated:
+                    self._retraining_initiations += 1
 
             # LFP dynamics
             improving = sector in growing if sector else False
@@ -601,6 +618,16 @@ class Model:
             if w.is_employed:
                 gen_employment[w.generation] = gen_employment.get(w.generation, 0) + 1
 
+        # Knowledge-work median wages by occupation bucket
+        from ai_econ_sim.config import KW_OCCUPATIONS
+        kw_occupation_wages: dict[str, float] = {}
+        for occ in KW_OCCUPATIONS:
+            occ_wages = [
+                w.current_wage for w in self.workers.get("knowledge_work", [])
+                if w.is_employed and w.occupation == occ
+            ]
+            kw_occupation_wages[occ] = float(np.median(occ_wages)) if occ_wages else 0.0
+
         accts = self.accounting.compute(
             quarter=self.quarter,
             sector_labor_income=sector_labor_income,
@@ -624,6 +651,10 @@ class Model:
         accts.firm_exits = self._firm_exits_this_quarter
         accts.firm_entries = self._firm_entries_this_quarter
         accts.gen_employment = gen_employment
+        accts.kw_occupation_wages = kw_occupation_wages
+        accts.retraining_initiations = self._retraining_initiations
+        accts.retraining_successes = self._retraining_successes
+        accts.retraining_failures = self._retraining_failures
         return accts
 
     def _sector_median_wage(self, sector: str) -> float:

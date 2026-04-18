@@ -65,6 +65,14 @@ class MacroAccounts:
     # Generational employment shares
     gen_employment: dict[str, int] = field(default_factory=dict)
 
+    # Knowledge-work median wages by occupation bucket
+    kw_occupation_wages: dict[str, float] = field(default_factory=dict)
+
+    # Retraining flows this quarter
+    retraining_initiations: int = 0
+    retraining_successes: int = 0
+    retraining_failures: int = 0
+
 
 class MacroAccounting:
     """

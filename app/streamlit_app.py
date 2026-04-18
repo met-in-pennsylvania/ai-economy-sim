@@ -371,14 +371,29 @@ if st.session_state.last_run is not None:
     with st.expander("Raw time series data"):
         st.dataframe(df.round(4), use_container_width=True)
 
-    # Download button
+    # Download buttons
+    dl1, dl2 = st.columns(2)
     csv_bytes = df.to_csv(index=False).encode()
-    st.download_button(
-        "Download time series CSV",
+    dl1.download_button(
+        "⬇ Download time series CSV",
         data=csv_bytes,
         file_name=f"{run['scenario_name']}_timeseries.csv",
         mime="text/csv",
+        use_container_width=True,
     )
+    if history and run.get("model"):
+        try:
+            from ai_econ_sim.analysis.outputs import build_run_report
+            report_txt = build_run_report(history, run["model"])
+            dl2.download_button(
+                "⬇ Download run report (.txt)",
+                data=report_txt.encode(),
+                file_name=f"{run['scenario_name']}_report.txt",
+                mime="text/plain",
+                use_container_width=True,
+            )
+        except Exception:
+            pass
 
 else:
     st.info("Configure parameters in the sidebar and click **Run Simulation**.")
