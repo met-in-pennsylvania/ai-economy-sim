@@ -267,6 +267,106 @@ if st.session_state.last_run is not None:
         with st.expander("BEA/BLS Calibration Report"):
             st.code(_calibration_report(history), language=None)
 
+    # ------------------------------------------------------------------
+    # Scenario comparison
+    # ------------------------------------------------------------------
+    with st.expander("📊 Compare against another scenario", expanded=False):
+        st.caption(
+            "Run a second scenario with the **same parameter overrides** applied on top, "
+            "then diff the key indicators against the primary run."
+        )
+        cmp_names = [n for n in scenario_names if n != run["scenario_name"]]
+        cmp_selected = st.selectbox("Comparison scenario", cmp_names, key="cmp_scenario")
+        cmp_btn = st.button("▶ Run comparison", key="cmp_run")
+
+        if cmp_btn or "cmp_run_result" in st.session_state:
+            if cmp_btn:
+                from ai_econ_sim.scenarios.loader import load_scenario as _ls
+                from ai_econ_sim.model import Model as _Model
+                from ai_econ_sim.analysis.outputs import build_time_series as _bts
+                from ai_econ_sim.config import DEV_POPULATION_SCALE as _DPS
+
+                cmp_path = SCENARIO_DIR / f"{cmp_selected}.yaml"
+                with st.spinner(f"Running comparison: {cmp_selected}..."):
+                    cmp_scen = _ls(cmp_path)
+                    # Apply same overrides as primary
+                    cmp_scen.regulation["knowledge_work"] = reg_kw
+                    cmp_scen.regulation["services"] = reg_svc
+                    cmp_scen.regulation["infrastructure"] = reg_infra
+                    cmp_scen.oss_frontier_gap = oss_gap
+                    cmp_scen.robotics.deployment_start_quarter = robotics_start
+                    cmp_scen.robotics.diffusion_rate = robotics_diffusion
+                    cmp_scen.sentiment.consumer_ai_discount["services"] = consumer_discount_services
+                    cmp_scen.sentiment.consumer_ai_discount["knowledge_work"] = consumer_discount_kw
+                    cmp_scen.sentiment.workforce_resistance["services"] = workforce_resistance_services
+                    cmp_scen.sentiment.workforce_resistance["knowledge_work"] = workforce_resistance_kw
+                    cmp_scen.interface_realization._keyframes = [(0, iface_start), (40, iface_end)]
+                    _scale = _DPS if dev_mode else 1.0
+                    cmp_model = _Model(cmp_scen, population_scale=_scale, dev_assertions=False)
+                    cmp_history = cmp_model.run()
+                cmp_df = _bts(cmp_history)
+                st.session_state["cmp_run_result"] = {
+                    "df": cmp_df,
+                    "name": cmp_selected,
+                }
+
+            if "cmp_run_result" in st.session_state:
+                cmp_res = st.session_state["cmp_run_result"]
+                cmp_df = cmp_res["df"]
+                cmp_name = cmp_res["name"]
+
+                st.success(f"Comparison: **{run['scenario_name']}** vs **{cmp_name}**")
+
+                # Delta metrics (final quarter)
+                KEY_METRICS = [
+                    ("real_gdp",          "Real GDP (Δ%)",            lambda a, b: (b / max(a, 1) - 1) * 100),
+                    ("unemployment_rate", "Unemployment (Δpp)",        lambda a, b: (b - a) * 100),
+                    ("labor_share",       "Labor share (Δpp)",         lambda a, b: (b - a) * 100),
+                    ("gini",              "Gini (Δ)",                   lambda a, b: b - a),
+                    ("lfp_rate",          "LFP rate (Δpp)",            lambda a, b: (b - a) * 100),
+                ]
+                dcols = st.columns(len(KEY_METRICS))
+                for col_ui, (key, label, fn) in zip(dcols, KEY_METRICS):
+                    try:
+                        a_val = float(df[key].iloc[-1])
+                        b_val = float(cmp_df[key].iloc[-1])
+                        delta = fn(a_val, b_val)
+                        col_ui.metric(label, f"{b_val:.3g}", f"{delta:+.2f}")
+                    except Exception:
+                        pass
+
+                # Overlay chart: key trajectories side-by-side
+                try:
+                    import plotly.graph_objects as go
+                    from plotly.subplots import make_subplots
+
+                    OVERLAY_METRICS = [
+                        ("real_gdp",          "Real GDP (index)",    lambda s: s / s.iloc[0]),
+                        ("unemployment_rate", "Unemployment %",      lambda s: s * 100),
+                        ("labor_share",       "Labor Share %",       lambda s: s * 100),
+                        ("gini",              "Gini",                lambda s: s),
+                    ]
+                    fig_cmp = make_subplots(rows=2, cols=2,
+                        subplot_titles=[m[1] for m in OVERLAY_METRICS])
+                    for idx, (key, label, transform) in enumerate(OVERLAY_METRICS):
+                        r, c = divmod(idx, 2)
+                        if key in df.columns and key in cmp_df.columns:
+                            fig_cmp.add_trace(go.Scatter(
+                                x=df["quarter"], y=transform(df[key]),
+                                name=run["scenario_name"], line=dict(color="#1a5276", width=2),
+                                showlegend=(idx == 0),
+                            ), row=r + 1, col=c + 1)
+                            fig_cmp.add_trace(go.Scatter(
+                                x=cmp_df["quarter"], y=transform(cmp_df[key]),
+                                name=cmp_name, line=dict(color="#922b21", width=2, dash="dash"),
+                                showlegend=(idx == 0),
+                            ), row=r + 1, col=c + 1)
+                    fig_cmp.update_layout(height=550,
+                        title_text=f"{run['scenario_name']}  vs  {cmp_name}")
+                    st.plotly_chart(fig_cmp, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"Could not render comparison chart: {e}")
+
     # Raw data expander
     with st.expander("Raw time series data"):
         st.dataframe(df.round(4), use_container_width=True)
