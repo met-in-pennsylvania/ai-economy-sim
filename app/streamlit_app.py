@@ -109,6 +109,26 @@ with st.sidebar:
              "0.04 = ~9 quarters to reach 35% displacement."
     )
 
+    st.subheader("Government Policy")
+    ubi_annual = st.slider(
+        "UBI — annual per person ($k)",
+        0.0, 24.0, 0.0, 1.0,
+        help="Annual Universal Basic Income payment per non-employed worker. "
+             "Reduces LFP exit and boosts re-entry. $12k ≈ ~27% of median services wage."
+    ) * 1000.0
+    retraining_subsidy = st.slider(
+        "Retraining subsidy rate",
+        0.0, 1.0, 0.0, 0.05,
+        help="Fraction representing the generosity of retraining support. "
+             "1.0 = maximum subsidy → ~60% more marginal workers initiate retraining."
+    )
+    windfall_tax = st.slider(
+        "AI windfall tax rate",
+        0.0, 0.50, 0.0, 0.05,
+        help="Fraction of AI-sector capital income levied as a windfall tax. "
+             "Tracked in outputs; not currently recycled into the economy."
+    )
+
     st.subheader("Uncertainty")
     mc_runs = st.slider(
         "Monte Carlo runs",
@@ -150,6 +170,9 @@ if run_btn:
         (0, iface_start),
         (40, iface_end),
     ]
+    scenario.policy.ubi_annual = ubi_annual
+    scenario.policy.retraining_subsidy_rate = retraining_subsidy
+    scenario.policy.ai_windfall_tax_rate = windfall_tax
 
     # Scale capability endpoints
     if capability_scale != 1.0:
@@ -213,6 +236,11 @@ if st.session_state.last_run is not None:
         build_plotly_demography_dashboard = None  # type: ignore[assignment]
 
     try:
+        from ai_econ_sim.analysis.plots import build_plotly_kw_dashboard
+    except ImportError:
+        build_plotly_kw_dashboard = None  # type: ignore[assignment]
+
+    try:
         from ai_econ_sim.calibration import calibration_report as _calibration_report
     except ImportError:
         _calibration_report = None  # type: ignore[assignment]
@@ -262,6 +290,12 @@ if st.session_state.last_run is not None:
                 st.subheader("Workforce Demographics & Firm Dynamics")
                 st.plotly_chart(fig_demo, use_container_width=True)
 
+        if build_plotly_kw_dashboard is not None:
+            fig_kw = build_plotly_kw_dashboard(df)
+            if fig_kw is not None:
+                st.subheader("Knowledge-Work Occupation Dynamics")
+                st.plotly_chart(fig_kw, use_container_width=True)
+
     # Calibration report (single runs only)
     if history and run["scenario_name"] == "calibrated_baseline_2023" and _calibration_report:
         with st.expander("BEA/BLS Calibration Report"):
@@ -301,6 +335,9 @@ if st.session_state.last_run is not None:
                     cmp_scen.sentiment.workforce_resistance["services"] = workforce_resistance_services
                     cmp_scen.sentiment.workforce_resistance["knowledge_work"] = workforce_resistance_kw
                     cmp_scen.interface_realization._keyframes = [(0, iface_start), (40, iface_end)]
+                    cmp_scen.policy.ubi_annual = ubi_annual
+                    cmp_scen.policy.retraining_subsidy_rate = retraining_subsidy
+                    cmp_scen.policy.ai_windfall_tax_rate = windfall_tax
                     _scale = _DPS if dev_mode else 1.0
                     cmp_model = _Model(cmp_scen, population_scale=_scale, dev_assertions=False)
                     cmp_history = cmp_model.run()

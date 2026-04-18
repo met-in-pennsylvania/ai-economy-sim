@@ -401,6 +401,93 @@ def build_plotly_dashboard(df: pd.DataFrame) -> Any:
     return fig
 
 
+KW_OCC_COLORS = {
+    "routine_analytical":   "#3498db",
+    "creative_synthesis":   "#e74c3c",
+    "relational":           "#2ecc71",
+    "technical_specialist": "#f39c12",
+}
+KW_OCC_LABELS = {
+    "routine_analytical":   "Routine Analytical",
+    "creative_synthesis":   "Creative Synthesis",
+    "relational":           "Relational",
+    "technical_specialist": "Technical Specialist",
+}
+
+
+def build_plotly_kw_dashboard(df: pd.DataFrame) -> Any:
+    """
+    Plotly figure showing knowledge-work occupation wage divergence
+    and capability index trajectory.  Rendered as a separate panel
+    below the main dashboard for single runs.
+    """
+    if not HAS_PLOTLY:
+        return None
+
+    kw_cols = [f"kw_wage_{o}" for o in KW_OCC_COLORS]
+    if not all(c in df.columns for c in kw_cols):
+        return None
+
+    subplot_titles = [
+        "KW Median Wages by Occupation ($k/yr)",
+        "KW Wage Divergence (index, Q0=1)",
+        "AI Capability Index",
+        "KW AI Adoption & Interface Realization",
+    ]
+    fig = make_subplots(rows=2, cols=2, subplot_titles=subplot_titles)
+    q = df["quarter"]
+
+    # Absolute wages
+    for occ, color in KW_OCC_COLORS.items():
+        col = f"kw_wage_{occ}"
+        if col in df.columns:
+            fig.add_trace(go.Scatter(
+                x=q, y=df[col] / 1_000,
+                name=KW_OCC_LABELS[occ],
+                line=dict(color=color),
+                legendgroup=occ,
+            ), row=1, col=1)
+
+    # Indexed divergence (Q0 = 1.0)
+    for occ, color in KW_OCC_COLORS.items():
+        col = f"kw_wage_{occ}"
+        if col in df.columns and df[col].iloc[0] > 0:
+            indexed = df[col] / df[col].iloc[0]
+            fig.add_trace(go.Scatter(
+                x=q, y=indexed,
+                name=KW_OCC_LABELS[occ],
+                line=dict(color=color),
+                legendgroup=occ,
+                showlegend=False,
+            ), row=1, col=2)
+
+    # Capability index
+    if "capability_index" in df.columns:
+        fig.add_trace(go.Scatter(
+            x=q, y=df["capability_index"],
+            name="Capability index",
+            line=dict(color="#8e44ad", width=2),
+        ), row=2, col=1)
+    if "interface_realization" in df.columns:
+        fig.add_trace(go.Scatter(
+            x=q, y=df["interface_realization"],
+            name="Interface realization",
+            line=dict(color="#16a085", dash="dot"),
+        ), row=2, col=1)
+
+    # KW AI adoption
+    if "ai_adoption_knowledge_work" in df.columns:
+        fig.add_trace(go.Scatter(
+            x=q, y=df["ai_adoption_knowledge_work"] * 100,
+            name="KW AI adoption %",
+            line=dict(color="#2980b9", width=2),
+        ), row=2, col=2)
+
+    fig.update_layout(height=600, showlegend=True,
+                      title_text="Knowledge Work: Occupation Wages & AI Capability")
+    return fig
+
+
 GENERATION_COLORS = {
     "boomer":     "#e67e22",
     "genx":       "#2980b9",

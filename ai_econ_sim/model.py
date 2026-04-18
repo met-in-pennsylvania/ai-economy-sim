@@ -10,12 +10,16 @@ from ai_econ_sim.config import (
     SECTORS, FIRM_COUNTS, WORKER_COUNTS, WAGE_BASE_BY_SECTOR,
     BASE_GROWTH_RATES, QUARTERS_PER_YEAR, AI_SPILLOVER,
     CORPORATE_TAX_RATE, PAYROLL_TAX_RATE, INCOME_TAX_RATE,
+    RETRAINING_MIN_QUARTERS, RETRAINING_MAX_QUARTERS,
 )
 from ai_econ_sim.sectors import SECTOR_DEFINITIONS
 from ai_econ_sim.scenarios.loader import Scenario
 from ai_econ_sim.capability.tasks import compute_occupation_exposure
 from ai_econ_sim.agents.firm import Firm, create_firms
-from ai_econ_sim.agents.worker import Worker, create_workers, _assign_generation, _sector_default_occupation, _sample_occupation
+from ai_econ_sim.agents.worker import (
+    Worker, create_workers, _assign_generation, _sector_default_occupation,
+    _sample_occupation, _retraining_success_prob, RetrainingState,
+)
 from ai_econ_sim.macro.accounting import MacroAccounting, MacroAccounts
 from ai_econ_sim.capability.trajectory import CapabilityTrajectory
 
@@ -121,6 +125,10 @@ class Model:
         self._retraining_initiations: int = 0
         self._retraining_successes: int = 0
         self._retraining_failures: int = 0
+
+        # Policy outcome counters (reset each quarter)
+        self._policy_retraining_subsidized: int = 0
+        self._policy_ubi_disbursed: float = 0.0
 
         # Demographic flow counters (reset each quarter)
         self._retirements_this_quarter: int = 0
@@ -481,6 +489,11 @@ class Model:
         self._retraining_initiations = 0
         self._retraining_successes = 0
         self._retraining_failures = 0
+        self._policy_retraining_subsidized = 0
+        self._policy_ubi_disbursed = 0.0
+
+        policy = self.scenario.policy
+        ubi_quarterly = policy.ubi_annual / 4.0
 
         all_workers = [w for ws in self.workers.values() for w in ws]
 
@@ -514,15 +527,51 @@ class Model:
                 else:
                     self._retraining_failures += 1
 
-            # Retraining decision
+            # Retraining decision (base)
+            subsidized_this_worker = False
             if not w.is_employed and w.retraining is None and sector in declining:
                 initiated = w.step_retraining_decision(self.rng, declining, growing)
                 if initiated:
                     self._retraining_initiations += 1
+                elif policy.retraining_subsidy_rate > 0.0:
+                    # Subsidy: second-chance roll for workers who declined
+                    age_factor = max(0.1, 1.0 - 0.02 * max(0, w.age - 30))
+                    skill_factor = 0.3 + 0.1 * w.skill_level
+                    base_prob = age_factor * skill_factor * 0.15
+                    subsidy_prob = base_prob * policy.retraining_subsidy_rate * 0.6
+                    if growing and self.rng.random() < subsidy_prob:
+                        target_sector = self.rng.choice(growing)
+                        target_occ = _sector_default_occupation(target_sector)
+                        duration = self.rng.integers(RETRAINING_MIN_QUARTERS, RETRAINING_MAX_QUARTERS + 1)
+                        success_prob = _retraining_success_prob(w.age, w.skill_level)
+                        w.retraining = RetrainingState(
+                            target_sector=target_sector,
+                            target_occupation=target_occ,
+                            quarters_remaining=int(duration),
+                            success_probability=success_prob,
+                        )
+                        w.is_employed = False
+                        w.employer_id = None
+                        self._retraining_initiations += 1
+                        self._policy_retraining_subsidized += 1
+                        subsidized_this_worker = True
 
             # LFP dynamics
             improving = sector in growing if sector else False
             w.step_labor_force_participation(self.rng, improving)
+
+            # UBI effect on LFP: income floor reduces exits, boosts re-entry
+            if ubi_quarterly > 0.0:
+                # Track disbursement for non-employed workers
+                if not w.is_employed:
+                    self._policy_ubi_disbursed += ubi_quarterly
+                # Extra re-entry chance for OLF workers when UBI provides income support
+                if not w.is_in_labor_force:
+                    ref_wage = sector_wage if sector_wage > 0 else 44_000.0
+                    extra_reentry = min(0.15, ubi_quarterly / (ref_wage / 4.0) * 0.3)
+                    if self.rng.random() < extra_reentry:
+                        w.is_in_labor_force = True
+                        w.quarters_unemployed = 0
 
     def _step_labor_matching(self) -> None:
         """Simple stochastic matching: unemployed workers -> firm vacancies."""
@@ -646,6 +695,7 @@ class Model:
             payroll_tax_rate=PAYROLL_TAX_RATE,
             income_tax_rate=INCOME_TAX_RATE,
         )
+        accts.capability_index = float(self.scenario.capability.capability_at(self.quarter).mean())
         accts.retirements = self._retirements_this_quarter
         accts.new_entrants = self._new_entrants_this_quarter
         accts.firm_exits = self._firm_exits_this_quarter
@@ -655,6 +705,15 @@ class Model:
         accts.retraining_initiations = self._retraining_initiations
         accts.retraining_successes = self._retraining_successes
         accts.retraining_failures = self._retraining_failures
+
+        # Policy accounting
+        policy = self.scenario.policy
+        windfall_tax = policy.ai_windfall_tax_rate * accts.ai_sector_capital_income
+        accts.policy_windfall_tax_collected = windfall_tax
+        accts.tax_revenue += windfall_tax
+        accts.policy_ubi_disbursed = self._policy_ubi_disbursed
+        accts.policy_retraining_subsidized = self._policy_retraining_subsidized
+
         return accts
 
     def _sector_median_wage(self, sector: str) -> float:

@@ -29,6 +29,7 @@ def build_time_series(history: list[MacroAccounts]) -> pd.DataFrame:
             row[f"robotics_adoption_{s}"] = accts.sector_robotics_adoption.get(s, 0.0)
 
         row["interface_realization"] = accts.interface_realization
+        row["capability_index"] = accts.capability_index
 
         # Knowledge-work median wages by occupation bucket
         for occ in ("routine_analytical", "creative_synthesis", "relational", "technical_specialist"):
@@ -61,6 +62,11 @@ def build_time_series(history: list[MacroAccounts]) -> pd.DataFrame:
         row["lfp_rate"] = total_lf / max(1, total_all)
         row["gini"] = accts.gini
         row["tax_revenue"] = accts.tax_revenue
+
+        # Policy outcomes
+        row["policy_ubi_disbursed"] = accts.policy_ubi_disbursed
+        row["policy_retraining_subsidized"] = accts.policy_retraining_subsidized
+        row["policy_windfall_tax_collected"] = accts.policy_windfall_tax_collected
 
         rows.append(row)
 

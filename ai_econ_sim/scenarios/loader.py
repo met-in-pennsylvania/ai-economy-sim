@@ -107,6 +107,29 @@ class RoboticsParams:
 
 
 @dataclass
+class PolicyParams:
+    """
+    Government policy levers that can be toggled independently of the scenario.
+
+    ubi_annual: annual per-capita UBI payment in dollars (0 = disabled).
+        Reduces LFP exit and slightly boosts re-entry by providing an income
+        floor. Does not directly add to worker wages; tracked separately.
+
+    retraining_subsidy_rate: fraction in [0, 1]. Multiplies the extra
+        probability of initiating retraining for workers who would otherwise
+        not have done so. 0.5 = 50% subsidy → ~50% more retraining initiations
+        at the margin.
+
+    ai_windfall_tax_rate: fraction in [0, 0.5] of AI-sector capital income
+        collected as a windfall levy each quarter. Tracked in MacroAccounts;
+        does not currently flow back into the economy (fiscal use is out of scope).
+    """
+    ubi_annual: float = 0.0
+    retraining_subsidy_rate: float = 0.0
+    ai_windfall_tax_rate: float = 0.0
+
+
+@dataclass
 class InitialConditions:
     gdp_shares: dict[str, float] = field(default_factory=dict)
     employment_shares: dict[str, float] = field(default_factory=dict)
@@ -128,6 +151,7 @@ class Scenario:
     robotics: RoboticsParams = field(default_factory=RoboticsParams)
     sentiment: SentimentParams = field(default_factory=SentimentParams)
     interface_realization: InterfaceRealization = field(default_factory=InterfaceRealization)
+    policy: PolicyParams = field(default_factory=PolicyParams)
     seed: int = 42
 
     def regulation_friction(self, sector: str) -> float:
@@ -198,6 +222,13 @@ def load_scenario(path: str | Path) -> Scenario:
     iface_frames = [(f["quarter"], f["value"]) for f in iface_frames_raw]
     interface_realization = InterfaceRealization(_keyframes=iface_frames)
 
+    policy_raw = raw.get("policy", {})
+    policy = PolicyParams(
+        ubi_annual=policy_raw.get("ubi_annual", 0.0),
+        retraining_subsidy_rate=policy_raw.get("retraining_subsidy_rate", 0.0),
+        ai_windfall_tax_rate=policy_raw.get("ai_windfall_tax_rate", 0.0),
+    )
+
     return Scenario(
         name=raw.get("scenario_name", "unnamed"),
         horizon_quarters=raw.get("horizon_quarters", 40),
@@ -211,5 +242,6 @@ def load_scenario(path: str | Path) -> Scenario:
         robotics=robotics,
         sentiment=sentiment,
         interface_realization=interface_realization,
+        policy=policy,
         seed=raw.get("seed", 42),
     )

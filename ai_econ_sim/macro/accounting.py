@@ -56,6 +56,9 @@ class MacroAccounts:
     # Tax revenue
     tax_revenue: float = 0.0
 
+    # Composite AI capability index this quarter (mean over task capabilities)
+    capability_index: float = 0.0
+
     # Demographic flows (set by Model._step_demographics / _step_firm_dynamics)
     retirements: int = 0
     new_entrants: int = 0
@@ -72,6 +75,11 @@ class MacroAccounts:
     retraining_initiations: int = 0
     retraining_successes: int = 0
     retraining_failures: int = 0
+
+    # Policy outcomes (all zero when policy is disabled)
+    policy_ubi_disbursed: float = 0.0            # total UBI paid this quarter
+    policy_retraining_subsidized: int = 0        # additional retraining initiations due to subsidy
+    policy_windfall_tax_collected: float = 0.0   # AI-sector windfall tax revenue this quarter
 
 
 class MacroAccounting:
