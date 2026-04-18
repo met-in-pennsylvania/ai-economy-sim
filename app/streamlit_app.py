@@ -130,7 +130,6 @@ if run_btn:
     from ai_econ_sim.scenarios.loader import load_scenario
     from ai_econ_sim.model import Model
     from ai_econ_sim.analysis.outputs import build_time_series
-    from ai_econ_sim.analysis.plots import build_plotly_dashboard
     from ai_econ_sim.config import DEV_POPULATION_SCALE
 
     with st.spinner("Loading scenario..."):
@@ -165,7 +164,6 @@ if run_btn:
 
     if mc_runs > 1:
         from ai_econ_sim.monte_carlo import run_monte_carlo
-        from ai_econ_sim.analysis.plots import build_plotly_mc_dashboard
         label = f"Running {mc_runs} MC simulations × {scenario.horizon_quarters} quarters..."
         with st.spinner(label):
             t0 = time.time()
@@ -203,6 +201,22 @@ if st.session_state.last_run is not None:
     mc = run.get("mc")
     history = run["history"]
 
+    # Import all plot helpers once at top of results block — avoids partial-deployment
+    # races where a deferred import hits a stale cached module on Streamlit Cloud.
+    from ai_econ_sim.analysis.plots import (
+        build_plotly_dashboard,
+        build_plotly_mc_dashboard,
+    )
+    try:
+        from ai_econ_sim.analysis.plots import build_plotly_demography_dashboard
+    except ImportError:
+        build_plotly_demography_dashboard = None  # type: ignore[assignment]
+
+    try:
+        from ai_econ_sim.calibration import calibration_report as _calibration_report
+    except ImportError:
+        _calibration_report = None  # type: ignore[assignment]
+
     n_label = f"{mc.n_runs} MC runs" if mc else "1 run"
     quarters_label = mc.runs[0].shape[0] if mc else (len(history) if history else "?")
     st.success(f"Ran **{run['scenario_name']}** — {quarters_label} quarters × {n_label} in {run['elapsed']:.1f}s")
@@ -228,33 +242,30 @@ if st.session_state.last_run is not None:
 
     # Plots
     if mc:
-        from ai_econ_sim.analysis.plots import build_plotly_mc_dashboard
         fig = build_plotly_mc_dashboard(mc)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
 
         # Also show the full dashboard on median
         st.subheader("Median trajectory (all sectors)")
-        from ai_econ_sim.analysis.plots import build_plotly_dashboard
         fig2 = build_plotly_dashboard(df)
         if fig2:
             st.plotly_chart(fig2, use_container_width=True)
     else:
-        from ai_econ_sim.analysis.plots import build_plotly_dashboard, build_plotly_demography_dashboard
         fig = build_plotly_dashboard(df)
         if fig is not None:
             st.plotly_chart(fig, use_container_width=True)
 
-        fig_demo = build_plotly_demography_dashboard(df)
-        if fig_demo is not None:
-            st.subheader("Workforce Demographics & Firm Dynamics")
-            st.plotly_chart(fig_demo, use_container_width=True)
+        if build_plotly_demography_dashboard is not None:
+            fig_demo = build_plotly_demography_dashboard(df)
+            if fig_demo is not None:
+                st.subheader("Workforce Demographics & Firm Dynamics")
+                st.plotly_chart(fig_demo, use_container_width=True)
 
     # Calibration report (single runs only)
-    if history and run["scenario_name"] == "calibrated_baseline_2023":
+    if history and run["scenario_name"] == "calibrated_baseline_2023" and _calibration_report:
         with st.expander("BEA/BLS Calibration Report"):
-            from ai_econ_sim.calibration import calibration_report
-            st.code(calibration_report(history), language=None)
+            st.code(_calibration_report(history), language=None)
 
     # Raw data expander
     with st.expander("Raw time series data"):
