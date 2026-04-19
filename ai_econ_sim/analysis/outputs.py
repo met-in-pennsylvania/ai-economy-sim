@@ -73,6 +73,20 @@ def build_time_series(history: list[MacroAccounts]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _compute_firm_size_dist(model: Any) -> dict[str, dict[str, int]]:
+    """Return firm size tier counts keyed by sector."""
+    tiers = ("micro", "small", "medium", "large")
+    result: dict[str, dict[str, int]] = {}
+    for sector, firms in model.firms.items():
+        counts: dict[str, int] = {t: 0 for t in tiers}
+        for firm in firms:
+            tier = getattr(firm, "size_tier", None)
+            if tier in counts:
+                counts[tier] += 1
+        result[sector] = counts
+    return result
+
+
 def build_run_summary(history: list[MacroAccounts], model: Any) -> dict[str, Any]:
     """Compute run-level summary dict (used for JSON export and report)."""
     if not history:
@@ -114,6 +128,7 @@ def build_run_summary(history: list[MacroAccounts], model: Any) -> dict[str, Any
             s: last.sector_employment.get(s, 0) for s in SECTORS
         },
         "final_kw_occupation_wages": dict(last.kw_occupation_wages),
+        "firm_size_dist_final": _compute_firm_size_dist(model),
     }
     return summary
 
@@ -232,6 +247,26 @@ def build_run_report(history: list[MacroAccounts], model: Any) -> str:
             cnt = last.gen_employment.get(gen, 0)
             share = cnt / gen_total * 100
             lines.append(f"  {label:<14} {cnt:>10,} {share:>7.1f}%")
+
+    # Firm size distribution (final quarter)
+    firm_size_dist = s.get("firm_size_dist_final", {})
+    if firm_size_dist:
+        lines += [
+            "",
+            "── FIRM SIZE DISTRIBUTION (final quarter) ──────────────────────",
+            f"  {'Sector':<20} {'Micro':>7} {'Small':>7} {'Medium':>8} {'Large':>7}",
+            f"  {'-'*20} {'-'*7} {'-'*7} {'-'*8} {'-'*7}",
+        ]
+        for sec in SECTORS:
+            if sec in firm_size_dist:
+                dist = firm_size_dist[sec]
+                lines.append(
+                    f"  {sec:<20} "
+                    f"{dist.get('micro', 0):>7,} "
+                    f"{dist.get('small', 0):>7,} "
+                    f"{dist.get('medium', 0):>8,} "
+                    f"{dist.get('large', 0):>7,}"
+                )
 
     lines += [
         "",
