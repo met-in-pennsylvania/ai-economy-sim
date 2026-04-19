@@ -28,6 +28,17 @@ st.caption(
 )
 
 # ------------------------------------------------------------------
+# URL query params — allow deep-linking to a pre-configured run.
+# Used by the Career Advisor Claude skill to open specific scenarios.
+# Supported params:
+#   ?scenario=<name>   — pre-selects a scenario in the sidebar
+#   ?mc_runs=<int>     — pre-sets Monte Carlo run count
+# ------------------------------------------------------------------
+_qp = st.query_params
+_qp_scenario = _qp.get("scenario", None)
+_qp_mc_runs  = int(_qp.get("mc_runs", 1))
+
+# ------------------------------------------------------------------
 # Sidebar: scenario selection + parameter overrides
 # ------------------------------------------------------------------
 
@@ -36,8 +47,17 @@ with st.sidebar:
 
     scenario_files = sorted(SCENARIO_DIR.glob("*.yaml"))
     scenario_names = [f.stem for f in scenario_files]
-    selected_name = st.selectbox("Base scenario", scenario_names, index=0)
+
+    # Honor ?scenario= query param if valid, otherwise default to index 0
+    _default_scenario_idx = 0
+    if _qp_scenario and _qp_scenario in scenario_names:
+        _default_scenario_idx = scenario_names.index(_qp_scenario)
+
+    selected_name = st.selectbox("Base scenario", scenario_names, index=_default_scenario_idx)
     selected_path = SCENARIO_DIR / f"{selected_name}.yaml"
+
+    if _qp_scenario and _qp_scenario in scenario_names:
+        st.caption(f"📎 Pre-selected via link: `{_qp_scenario}`")
 
     st.divider()
     st.header("Parameter Overrides")
@@ -130,9 +150,10 @@ with st.sidebar:
     )
 
     st.subheader("Uncertainty")
+    _mc_default = max(1, min(30, _qp_mc_runs))
     mc_runs = st.slider(
         "Monte Carlo runs",
-        1, 30, 1,
+        1, 30, _mc_default,
         help="1 = single deterministic run. >1 = run N times with different seeds "
              "and show median + uncertainty bands. 10–20 gives stable bands; takes ~10× longer."
     )
@@ -455,3 +476,73 @@ undergoing AI-driven transformation over a ~10-year horizon.
 
 See `PROJECT_PLAN.md` for full architecture documentation.
         """)
+
+# ------------------------------------------------------------------
+# Career Advisor Skill download — always visible at the bottom
+# ------------------------------------------------------------------
+st.divider()
+with st.expander("🤖 Get the Career Advisor Claude Skill", expanded=False):
+    st.markdown("""
+**Use this simulation for personalised AI career advice — inside Claude.**
+
+Download the skill file below and drop it into any project's `.claude/commands/` folder.
+Then type `/career-advisor` in Claude Code (or paste it as a system prompt in Claude.ai)
+to run a structured career analysis grounded in this simulation's actual output.
+
+The skill guides Claude to:
+1. Run a structured intake (sector, age, seniority, career question)
+2. Map your situation to simulation categories
+3. Open pre-configured runs of this app — or run the simulation locally if you have the repo
+4. Interpret the output as personalised career advice with honest uncertainty bounds
+
+**Installation (Claude Code):**
+```bash
+mkdir -p .claude/commands
+# Save the downloaded file as:
+mv career_advisor_skill.md .claude/commands/career-advisor.md
+# Then in any Claude Code session:
+# /career-advisor
+```
+
+**Works without local install too** — the skill generates direct links to this app
+with scenario pre-selected. Open the link, click Run, paste back the numbers.
+""")
+
+    # Let the user enter their deployment URL (defaults to a sensible placeholder)
+    skill_template_path = Path(__file__).parent / "career_advisor_skill.md"
+    if skill_template_path.exists():
+        _template = skill_template_path.read_text()
+
+        _default_url = "https://your-app.streamlit.app"
+        # Try to detect current host from query params metadata (best-effort)
+        _app_url = st.text_input(
+            "Your deployed app URL (injected into the skill file)",
+            value=_default_url,
+            help="Replace with your actual Streamlit Cloud or self-hosted URL. "
+                 "The skill uses this to generate pre-configured scenario links.",
+            key="skill_url_input",
+        )
+
+        _skill_content = _template.replace("STREAMLIT_APP_URL", _app_url.rstrip("/"))
+
+        st.download_button(
+            label="⬇ Download career_advisor_skill.md",
+            data=_skill_content.encode(),
+            file_name="career_advisor_skill.md",
+            mime="text/markdown",
+            use_container_width=True,
+            help="Save this file to .claude/commands/career-advisor.md in any project, "
+                 "then type /career-advisor in Claude Code.",
+        )
+
+        st.caption(
+            "The downloaded file is a Claude slash command. It contains the full career advisor "
+            "workflow, mapping tables, interpretation rules, and links to this app."
+        )
+
+        with st.expander("Preview scenario links the skill will generate"):
+            for sc in ["fragmented", "continued_exponential", "broadly_agentic", "transformative"]:
+                url = f"{_app_url.rstrip('/')}?scenario={sc}&mc_runs=10"
+                st.code(url, language=None)
+    else:
+        st.warning("Skill template file not found. Re-clone the repository.")
