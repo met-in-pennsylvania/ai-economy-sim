@@ -115,6 +115,11 @@ class Model:
         # Sector productivity multipliers
         self._productivity: dict[str, float] = {s: 1.0 for s in SECTORS}
 
+        # AI-only productivity (no robotics baked in) — tracked separately so that
+        # robotics can be applied as a pure level multiplier each quarter rather than
+        # compounding on top of itself every time it's applied.
+        self._ai_productivity: dict[str, float] = {s: 1.0 for s in SECTORS}
+
         # Robotics adoption level per sector [0, max_labor_displacement]
         self._robotics_adoption: dict[str, float] = {s: 0.0 for s in SECTORS}
 
@@ -269,21 +274,28 @@ class Model:
 
             elif s == "ai_compute":
                 chip_growth = self.scenario.compute.chip_supply_growth_annual / QUARTERS_PER_YEAR
-                self._productivity[s] = self._productivity[s] * (1.0 + chip_growth)
+                self._ai_productivity[s] = self._ai_productivity[s] * (1.0 + chip_growth)
+                self._productivity[s] = self._ai_productivity[s]
 
             else:
                 spillover = AI_SPILLOVER.get(s, 0.0)
                 avg_adoption = np.mean([f.ai_adoption_level for f in self.firms[s]]) if self.firms[s] else 0.0
                 effective_adoption = avg_adoption * (1.0 - resistance)
                 quarterly_growth = spillover * cap_idx * effective_adoption * realization / QUARTERS_PER_YEAR
-                ai_mult = self._productivity.get(s, 1.0) * (1.0 + quarterly_growth)
 
-                # Robotics boost is separate — physical task automation doesn't
-                # share the cognitive interface friction of knowledge tools.
+                # Compound only the AI-driven productivity — tracked separately so the
+                # robotics level multiplier doesn't bake itself in and re-compound each quarter.
+                self._ai_productivity[s] = self._ai_productivity[s] * (1.0 + quarterly_growth)
+
+                # Robotics is a LEVEL effect: how much more output the *same* demand can be
+                # satisfied with given current robot penetration. Recomputed fresh each quarter
+                # from current adoption — never compounded on itself.
                 rob_adoption = self._robotics_adoption.get(s, 0.0)
                 robotics_mult = 1.0 / max(0.01, 1.0 - rob_adoption)
 
-                self._productivity[s] = ai_mult * robotics_mult
+                # Safety cap: total productivity should not exceed ~5x baseline. Beyond this
+                # the hiring math produces implausible near-zero headcounts.
+                self._productivity[s] = min(5.0, self._ai_productivity[s] * robotics_mult)
 
     def _step_firms(self, cap_idx: float) -> None:
         for s in SECTORS:
@@ -482,8 +494,21 @@ class Model:
                     firm.n_workers = max(0, len(roster))
 
     def _step_workers(self) -> None:
-        # Identify declining and growing sectors
-        declining = {s for s in SECTORS if self._sector_demand.get(s, 1.0) < 0.95}
+        # Identify declining and growing sectors.
+        # "Declining" means: demand below 0.95 OR in-sector LFP unemployment above 20%.
+        # The second condition catches robotics-driven displacement where demand stays high
+        # (productivity keeps prices low, boosting demand) but firms need far fewer workers.
+        # Without it, displaced workers never trigger retraining in robotics scenarios.
+        declining: set[str] = set()
+        for s in SECTORS:
+            if self._sector_demand.get(s, 1.0) < 0.95:
+                declining.add(s)
+                continue
+            workers_s = self.workers.get(s, [])
+            in_lf = [w for w in workers_s if w.is_in_labor_force]
+            if in_lf and sum(1 for w in in_lf if not w.is_employed) / len(in_lf) > 0.20:
+                declining.add(s)
+
         growing = [s for s in SECTORS if self._sector_demand.get(s, 1.0) > 1.02]
 
         self._retraining_initiations = 0
